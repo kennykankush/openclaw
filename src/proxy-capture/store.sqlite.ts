@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { Insertable } from "kysely";
-import { sql } from "kysely";
 import {
   executeSqliteQuerySync,
   executeSqliteQueryTakeFirstSync,
@@ -119,7 +118,7 @@ function countTable(
       db,
       getCaptureKysely(db)
         .selectFrom(table)
-        .select(sql<number>`COUNT(*)`.as("count")),
+        .select((eb) => eb.fn.countAll<number>().as("count")),
     )?.count ?? 0
   );
 }
@@ -244,14 +243,14 @@ export class DebugProxyCaptureStore {
       getCaptureKysely(this.db)
         .selectFrom("capture_sessions as s")
         .leftJoin("capture_events as e", "e.session_id", "s.id")
-        .select([
+        .select((eb) => [
           "s.id as id",
           "s.started_at as startedAt",
           "s.ended_at as endedAt",
           "s.mode as mode",
           "s.source_process as sourceProcess",
           "s.proxy_url as proxyUrl",
-          sql<number>`COUNT(e.id)`.as("eventCount"),
+          eb.fn.count<number>("e.id").as("eventCount"),
         ])
         .groupBy("s.id")
         .orderBy("s.started_at", "desc")
@@ -359,7 +358,7 @@ export class DebugProxyCaptureStore {
   }
 
   readBlob(blobId: string): string | null {
-    const row = executeSqliteQueryTakeFirstSync<{ data: Buffer }>(
+    const row = executeSqliteQueryTakeFirstSync<{ data: Uint8Array }>(
       this.db,
       getCaptureKysely(this.db)
         .selectFrom("capture_blobs")
@@ -378,11 +377,16 @@ export class DebugProxyCaptureStore {
           this.db,
           db
             .selectFrom("capture_events")
-            .select(["host", "path", "method", sql<number>`COUNT(*)`.as("duplicateCount")])
+            .select((eb) => [
+              "host",
+              "path",
+              "method",
+              eb.fn.countAll<number>().as("duplicateCount"),
+            ])
             .where("kind", "=", "request")
             .$if(Boolean(sessionId), (qb) => qb.where("session_id", "=", sessionId ?? ""))
             .groupBy(["host", "path", "method", "data_sha256"])
-            .having(sql<number>`COUNT(*)`, ">", 1)
+            .having((eb) => eb.fn.countAll<number>(), ">", 1)
             .orderBy("duplicateCount", "desc")
             .orderBy("host", "asc"),
         ).rows;
@@ -391,12 +395,12 @@ export class DebugProxyCaptureStore {
           this.db,
           db
             .selectFrom("capture_events")
-            .select(["host", "path", sql<number>`COUNT(*)`.as("errorCount")])
+            .select((eb) => ["host", "path", eb.fn.countAll<number>().as("errorCount")])
             .where("kind", "=", "response")
             .where("status", ">=", 429)
             .$if(Boolean(sessionId), (qb) => qb.where("session_id", "=", sessionId ?? ""))
             .groupBy(["host", "path"])
-            .having(sql<number>`COUNT(*)`, ">", 1)
+            .having((eb) => eb.fn.countAll<number>(), ">", 1)
             .orderBy("errorCount", "desc")
             .orderBy("host", "asc"),
         ).rows;
@@ -405,7 +409,7 @@ export class DebugProxyCaptureStore {
           this.db,
           db
             .selectFrom("capture_events")
-            .select(["host", "path", sql<number>`COUNT(*)`.as("variantCount")])
+            .select((eb) => ["host", "path", eb.fn.countAll<number>().as("variantCount")])
             .where("kind", "=", "request")
             .where((eb) =>
               eb.or([
@@ -424,12 +428,12 @@ export class DebugProxyCaptureStore {
           this.db,
           db
             .selectFrom("capture_events")
-            .select(["host", "path", sql<number>`COUNT(*)`.as("duplicateFrames")])
+            .select((eb) => ["host", "path", eb.fn.countAll<number>().as("duplicateFrames")])
             .where("kind", "=", "ws-frame")
             .where("direction", "=", "outbound")
             .$if(Boolean(sessionId), (qb) => qb.where("session_id", "=", sessionId ?? ""))
             .groupBy(["host", "path", "data_sha256"])
-            .having(sql<number>`COUNT(*)`, ">", 1)
+            .having((eb) => eb.fn.countAll<number>(), ">", 1)
             .orderBy("duplicateFrames", "desc")
             .orderBy("host", "asc"),
         ).rows;
@@ -444,11 +448,11 @@ export class DebugProxyCaptureStore {
           this.db,
           db
             .selectFrom("capture_events")
-            .select([
+            .select((eb) => [
               "flow_id as flowId",
               "host",
               "path",
-              sql<number>`COUNT(*)`.as("outboundFrames"),
+              eb.fn.countAll<number>().as("outboundFrames"),
             ])
             .where("kind", "=", "ws-frame")
             .where("direction", "=", "outbound")
@@ -463,7 +467,7 @@ export class DebugProxyCaptureStore {
           this.db,
           db
             .selectFrom("capture_events")
-            .select(["host", "path", sql<number>`COUNT(*)`.as("errorCount")])
+            .select((eb) => ["host", "path", eb.fn.countAll<number>().as("errorCount")])
             .where("kind", "=", "error")
             .$if(Boolean(sessionId), (qb) => qb.where("session_id", "=", sessionId ?? ""))
             .groupBy(["host", "path"])
@@ -506,7 +510,7 @@ export class DebugProxyCaptureStore {
         this.db,
         db
           .selectFrom("capture_events")
-          .select(sql<number>`COUNT(*)`.as("count"))
+          .select((eb) => eb.fn.countAll<number>().as("count"))
           .where("session_id", "in", uniqueSessionIds),
       )?.count ?? 0;
     const sessionCount =
@@ -514,7 +518,7 @@ export class DebugProxyCaptureStore {
         this.db,
         db
           .selectFrom("capture_sessions")
-          .select(sql<number>`COUNT(*)`.as("count"))
+          .select((eb) => eb.fn.countAll<number>().as("count"))
           .where("id", "in", uniqueSessionIds),
       )?.count ?? 0;
     executeSqliteQuerySync(
