@@ -371,8 +371,8 @@
       "advanced": true
     },
     "appServer.streamAssistantDeltas": {
-      "label": "Stream Assistant Deltas",
-      "help": "Forward Codex assistant text deltas to the channel as partial replies before turn completion.",
+      "label": "Stream Assistant Snapshot",
+      "help": "Forward the Codex turn's resolved assistant text to the channel as a safe partial reply after hidden intermediate assistant messages are filtered.",
       "advanced": true
     },
     "appServer.approvalPolicy": {

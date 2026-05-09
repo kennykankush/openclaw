@@ -1480,6 +1480,7 @@ describe("runCodexAppServerAttempt", () => {
         delta: "partial ",
       },
     });
+    expect(params.onPartialReply).not.toHaveBeenCalled();
     await harness.notify({
       method: "item/agentMessage/delta",
       params: {
@@ -1489,13 +1490,14 @@ describe("runCodexAppServerAttempt", () => {
         delta: "answer",
       },
     });
+    expect(params.onPartialReply).not.toHaveBeenCalled();
     await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
 
     await expect(run).resolves.toMatchObject({
       assistantTexts: ["partial answer"],
     });
-    expect(params.onPartialReply).toHaveBeenNthCalledWith(1, { text: "partial " });
-    expect(params.onPartialReply).toHaveBeenNthCalledWith(2, { text: "partial answer" });
+    expect(params.onPartialReply).toHaveBeenCalledTimes(1);
+    expect(params.onPartialReply).toHaveBeenCalledWith({ text: "partial answer" });
   });
 
   it("forwards Codex app-server verbose tool summaries and completed output", async () => {

@@ -219,18 +219,22 @@ describe("CodexAppServerEventProjector", () => {
     expect(result.replayMetadata.replaySafe).toBe(true);
   });
 
-  it("streams cumulative assistant snapshots when configured", async () => {
+  it("emits the resolved assistant snapshot when configured", async () => {
     const { onAssistantMessageStart, onPartialReply, projector } =
       await createProjectorWithAssistantHooks({ streamAssistantDeltas: true });
 
     await projector.handleNotification(agentMessageDelta("hel"));
     await projector.handleNotification(agentMessageDelta("lo"));
+    expect(onPartialReply).not.toHaveBeenCalled();
+    await projector.handleNotification(
+      turnCompleted([{ type: "agentMessage", id: "msg-1", text: "hello" }]),
+    );
 
     const result = projector.buildResult(buildEmptyToolTelemetry());
 
     expect(onAssistantMessageStart).toHaveBeenCalledTimes(1);
-    expect(onPartialReply).toHaveBeenNthCalledWith(1, { text: "hel" });
-    expect(onPartialReply).toHaveBeenNthCalledWith(2, { text: "hello" });
+    expect(onPartialReply).toHaveBeenCalledTimes(1);
+    expect(onPartialReply).toHaveBeenCalledWith({ text: "hello" });
     expect(result.assistantTexts).toEqual(["hello"]);
   });
 
@@ -481,6 +485,34 @@ describe("CodexAppServerEventProjector", () => {
       },
     ]);
     expect(JSON.stringify(result.messagesSnapshot)).not.toContain("checking thread context");
+  });
+
+  it("does not stream intermediate agentMessage items", async () => {
+    const { onPartialReply, projector } = await createProjectorWithAssistantHooks({
+      streamAssistantDeltas: true,
+    });
+
+    await projector.handleNotification(agentMessageDelta("checking private context", "msg-hidden"));
+    await projector.handleNotification(agentMessageDelta("final visible answer", "msg-final"));
+    expect(onPartialReply).not.toHaveBeenCalled();
+
+    await projector.handleNotification(
+      turnCompleted([
+        {
+          type: "agentMessage",
+          id: "msg-hidden",
+          text: "checking private context",
+        },
+        {
+          type: "agentMessage",
+          id: "msg-final",
+          text: "final visible answer",
+        },
+      ]),
+    );
+
+    expect(onPartialReply).toHaveBeenCalledTimes(1);
+    expect(onPartialReply).toHaveBeenCalledWith({ text: "final visible answer" });
   });
 
   it("ignores notifications for other turns", async () => {

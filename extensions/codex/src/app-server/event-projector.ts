@@ -97,6 +97,7 @@ export class CodexAppServerEventProjector {
     { chars: number; messages: number; truncated: boolean }
   >();
   private readonly toolMetas = new Map<string, { toolName: string; meta?: string }>();
+  private lastEmittedAssistantPartialText = "";
   private assistantStarted = false;
   private reasoningStarted = false;
   private reasoningEnded = false;
@@ -321,9 +322,6 @@ export class CodexAppServerEventProjector {
     this.rememberAssistantItem(itemId);
     const text = `${this.assistantTextByItem.get(itemId) ?? ""}${delta}`;
     this.assistantTextByItem.set(itemId, text);
-    if (this.options.streamAssistantDeltas) {
-      await this.emitAssistantPartial(text);
-    }
     // Codex app-server can emit multiple agentMessage items per turn, including
     // intermediate coordination/progress prose. Keep those deltas internal until
     // turn completion chooses the last assistant item as the user-visible reply.
@@ -574,7 +572,19 @@ export class CodexAppServerEventProjector {
       this.emitToolResultOutput(item);
     }
     this.activeCompactionItemIds.clear();
+    if (this.options.streamAssistantDeltas) {
+      await this.emitResolvedAssistantPartial();
+    }
     await this.maybeEndReasoning();
+  }
+
+  private async emitResolvedAssistantPartial(): Promise<void> {
+    const text = this.resolveFinalAssistantText();
+    if (!text || text === this.lastEmittedAssistantPartialText) {
+      return;
+    }
+    this.lastEmittedAssistantPartialText = text;
+    await this.emitAssistantPartial(text);
   }
 
   private handleOutputDelta(params: JsonObject, toolName: string): void {
