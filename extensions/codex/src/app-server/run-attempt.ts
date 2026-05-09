@@ -716,6 +716,7 @@ export async function runCodexAppServerAttempt(
             startupAuthProfileId,
             agentDir,
             params.config,
+            { dynamicToolServerRequestTimeoutMs: appServer.dynamicToolTimeoutMs },
           );
           attemptedClient = startupClient;
           startupClientForCleanup = startupClient;

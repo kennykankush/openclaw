@@ -486,7 +486,11 @@ export function resolveCodexComputerUseConfig(
 
 export function codexAppServerStartOptionsKey(
   options: CodexAppServerStartOptions,
-  params: { authProfileId?: string; agentDir?: string } = {},
+  params: {
+    authProfileId?: string;
+    agentDir?: string;
+    dynamicToolServerRequestTimeoutMs?: number;
+  } = {},
 ): string {
   return JSON.stringify({
     transport: options.transport,
@@ -504,6 +508,7 @@ export function codexAppServerStartOptionsKey(
     clearEnv: [...(options.clearEnv ?? [])].toSorted(),
     authProfileId: params.authProfileId ?? null,
     agentDir: params.agentDir ?? null,
+    dynamicToolServerRequestTimeoutMs: params.dynamicToolServerRequestTimeoutMs ?? null,
   });
 }
 

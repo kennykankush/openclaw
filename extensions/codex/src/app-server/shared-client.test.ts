@@ -37,6 +37,7 @@ let listCodexAppServerModels: typeof import("./models.js").listCodexAppServerMod
 let clearSharedCodexAppServerClient: typeof import("./shared-client.js").clearSharedCodexAppServerClient;
 let clearSharedCodexAppServerClientIfCurrent: typeof import("./shared-client.js").clearSharedCodexAppServerClientIfCurrent;
 let createIsolatedCodexAppServerClient: typeof import("./shared-client.js").createIsolatedCodexAppServerClient;
+let getSharedCodexAppServerClient: typeof import("./shared-client.js").getSharedCodexAppServerClient;
 let resetSharedCodexAppServerClientForTests: typeof import("./shared-client.js").resetSharedCodexAppServerClientForTests;
 
 async function sendInitializeResult(
@@ -61,6 +62,7 @@ describe("shared Codex app-server client", () => {
       clearSharedCodexAppServerClient,
       clearSharedCodexAppServerClientIfCurrent,
       createIsolatedCodexAppServerClient,
+      getSharedCodexAppServerClient,
       resetSharedCodexAppServerClientForTests,
     } = await import("./shared-client.js"));
   });
@@ -211,6 +213,45 @@ describe("shared Codex app-server client", () => {
         authProfileId: "openai-codex:work",
       }),
     );
+  });
+
+  it("passes dynamic tool server request timeout into the shared client key", async () => {
+    const first = createClientHarness();
+    const second = createClientHarness();
+    const startSpy = vi
+      .spyOn(CodexAppServerClient, "start")
+      .mockReturnValueOnce(first.client)
+      .mockReturnValueOnce(second.client);
+    const startOptions = {
+      transport: "stdio" as const,
+      command: "codex",
+      args: ["app-server"],
+      headers: {},
+    };
+
+    const firstClient = getSharedCodexAppServerClient({
+      startOptions,
+      timeoutMs: 1000,
+      clientOptions: { dynamicToolServerRequestTimeoutMs: 30_000 },
+    });
+    await sendInitializeResult(first, "openclaw/0.125.0 (macOS; test)");
+    await expect(firstClient).resolves.toBe(first.client);
+
+    const secondClient = getSharedCodexAppServerClient({
+      startOptions,
+      timeoutMs: 1000,
+      clientOptions: { dynamicToolServerRequestTimeoutMs: 60_000 },
+    });
+    await sendInitializeResult(second, "openclaw/0.125.0 (macOS; test)");
+    await expect(secondClient).resolves.toBe(second.client);
+
+    expect(startSpy).toHaveBeenNthCalledWith(1, startOptions, {
+      dynamicToolServerRequestTimeoutMs: 30_000,
+    });
+    expect(startSpy).toHaveBeenNthCalledWith(2, startOptions, {
+      dynamicToolServerRequestTimeoutMs: 60_000,
+    });
+    expect(first.process.kill).toHaveBeenCalledWith("SIGTERM");
   });
 
   it("resolves the managed binary before bridging and spawning the shared client", async () => {

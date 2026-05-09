@@ -792,6 +792,21 @@ allowed_sandbox_modes = ["read-only", "workspace-write"]
     );
   });
 
+  it("derives distinct shared-client keys for dynamic tool server request timeouts", () => {
+    const startOptions = {
+      transport: "stdio" as const,
+      command: "codex",
+      args: ["app-server"],
+      headers: {},
+    };
+
+    expect(
+      codexAppServerStartOptionsKey(startOptions, { dynamicToolServerRequestTimeoutMs: 30_000 }),
+    ).not.toEqual(
+      codexAppServerStartOptionsKey(startOptions, { dynamicToolServerRequestTimeoutMs: 60_000 }),
+    );
+  });
+
   it("keeps runtime config keys aligned with manifest schema and UI hints", async () => {
     const manifest = JSON.parse(
       await fs.readFile(new URL("../../openclaw.plugin.json", import.meta.url), "utf8"),
