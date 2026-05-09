@@ -219,16 +219,19 @@ describe("CodexAppServerEventProjector", () => {
     expect(result.replayMetadata.replaySafe).toBe(true);
   });
 
-  it("streams assistant deltas as partial replies when enabled", async () => {
-    const { onPartialReply, projector } = await createProjectorWithAssistantHooks({
-      streamAssistantDeltas: true,
-    });
+  it("streams cumulative assistant snapshots when configured", async () => {
+    const { onAssistantMessageStart, onPartialReply, projector } =
+      await createProjectorWithAssistantHooks({ streamAssistantDeltas: true });
 
     await projector.handleNotification(agentMessageDelta("hel"));
     await projector.handleNotification(agentMessageDelta("lo"));
 
+    const result = projector.buildResult(buildEmptyToolTelemetry());
+
+    expect(onAssistantMessageStart).toHaveBeenCalledTimes(1);
     expect(onPartialReply).toHaveBeenNthCalledWith(1, { text: "hel" });
-    expect(onPartialReply).toHaveBeenNthCalledWith(2, { text: "lo" });
+    expect(onPartialReply).toHaveBeenNthCalledWith(2, { text: "hello" });
+    expect(result.assistantTexts).toEqual(["hello"]);
   });
 
   it("does not treat cumulative-only token usage as fresh context usage", async () => {

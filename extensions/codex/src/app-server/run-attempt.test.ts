@@ -1457,6 +1457,44 @@ describe("runCodexAppServerAttempt", () => {
     );
   });
 
+  it("streams Codex assistant deltas to partial replies when configured", async () => {
+    const sessionFile = path.join(tempDir, "session.jsonl");
+    const workspaceDir = path.join(tempDir, "workspace");
+    const harness = createStartedThreadHarness();
+    const params = createParams(sessionFile, workspaceDir);
+    params.onPartialReply = vi.fn();
+
+    const run = runCodexAppServerAttempt(params, {
+      pluginConfig: { appServer: { streamAssistantDeltas: true } },
+    });
+    await harness.waitForMethod("turn/start");
+    await harness.notify({
+      method: "item/agentMessage/delta",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        itemId: "msg-1",
+        delta: "partial ",
+      },
+    });
+    await harness.notify({
+      method: "item/agentMessage/delta",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        itemId: "msg-1",
+        delta: "answer",
+      },
+    });
+    await harness.completeTurn({ threadId: "thread-1", turnId: "turn-1" });
+
+    await expect(run).resolves.toMatchObject({
+      assistantTexts: ["partial answer"],
+    });
+    expect(params.onPartialReply).toHaveBeenNthCalledWith(1, { text: "partial " });
+    expect(params.onPartialReply).toHaveBeenNthCalledWith(2, { text: "partial answer" });
+  });
+
   it("forwards Codex app-server verbose tool summaries and completed output", async () => {
     const onToolResult = vi.fn();
     const sessionFile = path.join(tempDir, "session.jsonl");

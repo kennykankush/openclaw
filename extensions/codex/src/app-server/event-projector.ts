@@ -318,22 +318,22 @@ export class CodexAppServerEventProjector {
       this.assistantStarted = true;
       await this.params.onAssistantMessageStart?.();
     }
-    if (this.options.streamAssistantDeltas) {
-      await this.emitAssistantDelta(delta);
-    }
     this.rememberAssistantItem(itemId);
     const text = `${this.assistantTextByItem.get(itemId) ?? ""}${delta}`;
     this.assistantTextByItem.set(itemId, text);
+    if (this.options.streamAssistantDeltas) {
+      await this.emitAssistantPartial(text);
+    }
     // Codex app-server can emit multiple agentMessage items per turn, including
     // intermediate coordination/progress prose. Keep those deltas internal until
     // turn completion chooses the last assistant item as the user-visible reply.
   }
 
-  private async emitAssistantDelta(delta: string): Promise<void> {
+  private async emitAssistantPartial(text: string): Promise<void> {
     try {
-      await this.params.onPartialReply?.({ text: delta });
+      await this.params.onPartialReply?.({ text });
     } catch (error) {
-      embeddedAgentLog.debug("codex app-server assistant delta delivery failed", { error });
+      embeddedAgentLog.debug("codex app-server assistant partial delivery failed", { error });
     }
   }
 
