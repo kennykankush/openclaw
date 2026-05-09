@@ -107,10 +107,10 @@ function countMatching<T>(items: readonly T[], predicate: (item: T) => boolean):
 }
 
 function expectGlobalHookRunner(runner: ReturnType<typeof getGlobalHookRunner>): GlobalHookRunner {
-  expect(runner).toEqual(expect.objectContaining({ hasHooks: expect.any(Function) }));
   if (runner === null) {
     throw new Error("Expected global hook runner");
   }
+  expect(typeof runner.hasHooks).toBe("function");
   return runner;
 }
 
@@ -1129,13 +1129,14 @@ describe("loadOpenClawPlugins", () => {
     });
 
     expect(registry.textTransforms).toHaveLength(1);
-    expect(registry.textTransforms[0]).toMatchObject({
-      pluginId: "text-shim",
-      transforms: {
-        input: expect.any(Array),
-        output: expect.any(Array),
-      },
-    });
+    const transformRegistration = registry.textTransforms[0];
+    expect(transformRegistration?.pluginId).toBe("text-shim");
+    expect(transformRegistration?.transforms.input).toEqual([
+      { from: /red basket/g, to: "blue basket" },
+    ]);
+    expect(transformRegistration?.transforms.output).toEqual([
+      { from: /blue basket/g, to: "red basket" },
+    ]);
   });
 
   it.each([
@@ -2239,7 +2240,7 @@ module.exports = { id: "throws-after-import", register() {} };`,
     const event = createInternalHookEvent("gateway", "startup", "gateway:startup");
     await triggerInternalHook(event);
     expect(event.messages).toEqual(["plugin-config-visible"]);
-    expect(event.context).toEqual({});
+    expect(event.context).toStrictEqual({});
 
     clearInternalHooks();
   });
