@@ -24,7 +24,7 @@ import type {
 type VfsEntriesTable = OpenClawAgentKyselyDatabase["vfs_entries"];
 type VirtualAgentFsDatabase = Pick<OpenClawAgentKyselyDatabase, "vfs_entries">;
 
-type VirtualAgentFsRow = Selectable<VfsEntriesTable> & {
+type VirtualAgentFsRow = Omit<Selectable<VfsEntriesTable>, "kind"> & {
   kind: VirtualAgentFsEntryKind;
 };
 
@@ -83,6 +83,15 @@ function rowToEntry(row: VirtualAgentFsRow): VirtualAgentFsEntry {
   };
 }
 
+function virtualAgentFsRowFromDb(
+  row: Omit<Selectable<VfsEntriesTable>, "kind"> & { kind: string },
+) {
+  return {
+    ...row,
+    kind: row.kind as VirtualAgentFsEntryKind,
+  };
+}
+
 function bindEntry(params: {
   namespace: string;
   path: string;
@@ -115,29 +124,28 @@ export class SqliteVirtualAgentFs implements VirtualAgentFs {
   #selectRow(filePath: string): VirtualAgentFsRow | null {
     const database = openOpenClawAgentDatabase(this.#options);
     const db = getNodeSqliteKysely<VirtualAgentFsDatabase>(database.db);
-    return (
-      executeSqliteQueryTakeFirstSync<VirtualAgentFsRow>(
-        database.db,
-        db
-          .selectFrom("vfs_entries")
-          .select(["path", "kind", "content_blob", "metadata_json", "updated_at"])
-          .where("namespace", "=", this.#options.namespace)
-          .where("path", "=", normalizeVfsPath(filePath)),
-      ) ?? null
+    const row = executeSqliteQueryTakeFirstSync(
+      database.db,
+      db
+        .selectFrom("vfs_entries")
+        .select(["namespace", "path", "kind", "content_blob", "metadata_json", "updated_at"])
+        .where("namespace", "=", this.#options.namespace)
+        .where("path", "=", normalizeVfsPath(filePath)),
     );
+    return row ? virtualAgentFsRowFromDb(row) : null;
   }
 
   #allRows(): VirtualAgentFsRow[] {
     const database = openOpenClawAgentDatabase(this.#options);
     const db = getNodeSqliteKysely<VirtualAgentFsDatabase>(database.db);
-    return executeSqliteQuerySync<VirtualAgentFsRow>(
+    return executeSqliteQuerySync(
       database.db,
       db
         .selectFrom("vfs_entries")
-        .select(["path", "kind", "content_blob", "metadata_json", "updated_at"])
+        .select(["namespace", "path", "kind", "content_blob", "metadata_json", "updated_at"])
         .where("namespace", "=", this.#options.namespace)
         .orderBy("path", "asc"),
-    ).rows;
+    ).rows.map(virtualAgentFsRowFromDb);
   }
 
   #upsert(params: {

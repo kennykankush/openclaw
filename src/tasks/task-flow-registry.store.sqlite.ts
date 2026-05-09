@@ -13,7 +13,7 @@ import type { TaskFlowRecord, TaskFlowSyncMode, JsonValue } from "./task-flow-re
 type FlowRunsTable = OpenClawStateKyselyDatabase["flow_runs"];
 type FlowRegistryStoreDatabase = Pick<OpenClawStateKyselyDatabase, "flow_runs">;
 
-type FlowRegistryRow = Selectable<FlowRunsTable> & {
+type FlowRegistryRow = Omit<Selectable<FlowRunsTable>, "notify_policy" | "status" | "sync_mode"> & {
   sync_mode: TaskFlowSyncMode | null;
   status: TaskFlowRecord["status"];
   notify_policy: TaskFlowRecord["notifyPolicy"];
@@ -138,7 +138,12 @@ function selectFlowRows(db: DatabaseSync): FlowRegistryRow[] {
     ])
     .orderBy("created_at", "asc")
     .orderBy("flow_id", "asc");
-  return executeSqliteQuerySync<FlowRegistryRow>(db, query).rows;
+  return executeSqliteQuerySync(db, query).rows.map((row) => ({
+    ...row,
+    sync_mode: row.sync_mode as TaskFlowSyncMode | null,
+    status: row.status as TaskFlowRecord["status"],
+    notify_policy: row.notify_policy as TaskFlowRecord["notifyPolicy"],
+  }));
 }
 
 function upsertFlowRow(db: DatabaseSync, row: Insertable<FlowRunsTable>): void {
