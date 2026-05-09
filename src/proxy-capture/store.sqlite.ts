@@ -79,6 +79,10 @@ function getCaptureKysely(db: DatabaseSync) {
   return getNodeSqliteKysely<ProxyCaptureKyselyDatabase>(db);
 }
 
+function assertNeverCaptureQueryPreset(preset: never): never {
+  throw new Error(`Unhandled capture query preset: ${String(preset)}`);
+}
+
 function captureBlobRecordFromEncoded(
   encoded: ReturnType<typeof encodeCaptureBlob>,
 ): CaptureBlobRecord {
@@ -462,7 +466,7 @@ export class DebugProxyCaptureStore {
             .orderBy("host", "asc"),
         ).rows;
       default:
-        return [];
+        return assertNeverCaptureQueryPreset(preset);
     }
   }
 
