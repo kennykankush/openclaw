@@ -31,12 +31,19 @@ describe("Codex app-server config", () => {
           sandbox: "danger-full-access",
           approvalsReviewer: "guardian_subagent",
           serviceTier: "flex",
+          dynamicToolTimeoutMs: 45_000,
           turnCompletionIdleTimeoutMs: 120_000,
+          turnTerminalIdleTimeoutMs: 240_000,
+          streamAssistantDeltas: true,
         },
       },
       env: {
         OPENCLAW_CODEX_APP_SERVER_APPROVAL_POLICY: "never",
         OPENCLAW_CODEX_APP_SERVER_SANDBOX: "read-only",
+        OPENCLAW_CODEX_DYNAMIC_TOOL_TIMEOUT_MS: "1",
+        OPENCLAW_CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS: "2",
+        OPENCLAW_CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS: "3",
+        OPENCLAW_CODEX_STREAM_ASSISTANT_DELTAS: "0",
       },
     });
 
@@ -46,12 +53,35 @@ describe("Codex app-server config", () => {
         sandbox: "danger-full-access",
         approvalsReviewer: "guardian_subagent",
         serviceTier: "flex",
+        dynamicToolTimeoutMs: 45_000,
         turnCompletionIdleTimeoutMs: 120_000,
+        turnTerminalIdleTimeoutMs: 240_000,
+        streamAssistantDeltas: true,
         start: expect.objectContaining({
           transport: "websocket",
           url: "ws://127.0.0.1:39175",
           headers: { "X-Test": "yes" },
         }),
+      }),
+    );
+  });
+
+  it("resolves Codex app-server reliability knobs from environment fallbacks", () => {
+    const runtime = resolveRuntimeForTest({
+      env: {
+        OPENCLAW_CODEX_DYNAMIC_TOOL_TIMEOUT_MS: "45000",
+        OPENCLAW_CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS: "120000",
+        OPENCLAW_CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS: "240000",
+        OPENCLAW_CODEX_STREAM_ASSISTANT_DELTAS: "true",
+      },
+    });
+
+    expect(runtime).toEqual(
+      expect.objectContaining({
+        dynamicToolTimeoutMs: 45_000,
+        turnCompletionIdleTimeoutMs: 120_000,
+        turnTerminalIdleTimeoutMs: 240_000,
+        streamAssistantDeltas: true,
       }),
     );
   });

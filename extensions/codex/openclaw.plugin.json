@@ -171,10 +171,24 @@
             "minimum": 1,
             "default": 60000
           },
+          "dynamicToolTimeoutMs": {
+            "type": "number",
+            "minimum": 1,
+            "default": 30000
+          },
           "turnCompletionIdleTimeoutMs": {
             "type": "number",
             "minimum": 1,
             "default": 60000
+          },
+          "turnTerminalIdleTimeoutMs": {
+            "type": "number",
+            "minimum": 1,
+            "default": 1800000
+          },
+          "streamAssistantDeltas": {
+            "type": "boolean",
+            "default": false
           },
           "approvalPolicy": {
             "type": "string",
@@ -341,9 +355,24 @@
       "help": "Maximum time to wait for Codex app-server control-plane requests.",
       "advanced": true
     },
+    "appServer.dynamicToolTimeoutMs": {
+      "label": "Dynamic Tool Timeout",
+      "help": "Maximum time to wait for an OpenClaw dynamic tool call invoked by Codex app-server.",
+      "advanced": true
+    },
     "appServer.turnCompletionIdleTimeoutMs": {
       "label": "Turn Completion Idle Timeout",
       "help": "Maximum quiet time after a turn-scoped Codex app-server request before OpenClaw interrupts the turn while waiting for turn/completed.",
+      "advanced": true
+    },
+    "appServer.turnTerminalIdleTimeoutMs": {
+      "label": "Turn Terminal Idle Timeout",
+      "help": "Maximum quiet time after any Codex app-server turn activity before OpenClaw interrupts the turn while waiting for a terminal event.",
+      "advanced": true
+    },
+    "appServer.streamAssistantDeltas": {
+      "label": "Stream Assistant Deltas",
+      "help": "Forward Codex assistant text deltas to the channel as partial replies before turn completion.",
       "advanced": true
     },
     "appServer.approvalPolicy": {

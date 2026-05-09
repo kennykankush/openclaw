@@ -63,20 +63,24 @@ async function createParams(): Promise<EmbeddedRunAttemptParams> {
 
 async function createProjector(
   params?: EmbeddedRunAttemptParams,
+  options?: { streamAssistantDeltas?: boolean },
 ): Promise<CodexAppServerEventProjector> {
   const resolvedParams = params ?? (await createParams());
-  return new CodexAppServerEventProjector(resolvedParams, THREAD_ID, TURN_ID);
+  return new CodexAppServerEventProjector(resolvedParams, THREAD_ID, TURN_ID, options);
 }
 
-async function createProjectorWithAssistantHooks() {
+async function createProjectorWithAssistantHooks(options?: { streamAssistantDeltas?: boolean }) {
   const onAssistantMessageStart = vi.fn();
   const onPartialReply = vi.fn();
   const params = await createParams();
-  const projector = await createProjector({
-    ...params,
-    onAssistantMessageStart,
-    onPartialReply,
-  });
+  const projector = await createProjector(
+    {
+      ...params,
+      onAssistantMessageStart,
+      onPartialReply,
+    },
+    options,
+  );
   return { onAssistantMessageStart, onPartialReply, projector };
 }
 
@@ -213,6 +217,18 @@ describe("CodexAppServerEventProjector", () => {
       totalTokens: 12,
     });
     expect(result.replayMetadata.replaySafe).toBe(true);
+  });
+
+  it("streams assistant deltas as partial replies when enabled", async () => {
+    const { onPartialReply, projector } = await createProjectorWithAssistantHooks({
+      streamAssistantDeltas: true,
+    });
+
+    await projector.handleNotification(agentMessageDelta("hel"));
+    await projector.handleNotification(agentMessageDelta("lo"));
+
+    expect(onPartialReply).toHaveBeenNthCalledWith(1, { text: "hel" });
+    expect(onPartialReply).toHaveBeenNthCalledWith(2, { text: "lo" });
   });
 
   it("does not treat cumulative-only token usage as fresh context usage", async () => {

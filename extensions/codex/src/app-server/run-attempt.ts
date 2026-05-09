@@ -65,6 +65,9 @@ import {
 } from "./client.js";
 import { ensureCodexComputerUse } from "./computer-use.js";
 import {
+  DEFAULT_CODEX_DYNAMIC_TOOL_TIMEOUT_MS,
+  DEFAULT_CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS,
+  DEFAULT_CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS,
   readCodexPluginConfig,
   resolveCodexPluginsPolicy,
   resolveCodexAppServerRuntimeOptions,
@@ -132,10 +135,7 @@ import { mirrorCodexAppServerTranscript } from "./transcript-mirror.js";
 import { createCodexUserInputBridge } from "./user-input-bridge.js";
 import { filterToolsForVisionInputs } from "./vision-tools.js";
 
-const CODEX_DYNAMIC_TOOL_TIMEOUT_MS = 30_000;
 const CODEX_APP_SERVER_STARTUP_CONNECTION_CLOSE_MAX_ATTEMPTS = 3;
-const CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS = 60_000;
-const CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS = 30 * 60_000;
 const CODEX_STEER_ALL_DEBOUNCE_MS = 500;
 const LOG_FIELD_MAX_LENGTH = 160;
 const CODEX_NATIVE_PROJECT_DOC_BASENAMES = new Set(["agents.md"]);
@@ -847,7 +847,7 @@ export async function runCodexAppServerAttempt(
     options.turnCompletionIdleTimeoutMs ?? appServer.turnCompletionIdleTimeoutMs,
   );
   const turnTerminalIdleTimeoutMs = resolveCodexTurnTerminalIdleTimeoutMs(
-    options.turnTerminalIdleTimeoutMs,
+    options.turnTerminalIdleTimeoutMs ?? appServer.turnTerminalIdleTimeoutMs,
   );
   let turnCompletionIdleTimer: ReturnType<typeof setTimeout> | undefined;
   let turnCompletionIdleWatchArmed = false;
@@ -928,7 +928,7 @@ export async function runCodexAppServerAttempt(
     timedOut = true;
     turnCompletionIdleTimedOut = true;
     turnCompletionIdleTimeoutMessage =
-      "codex app-server turn idle timed out waiting for turn/completed";
+      "codex app-server turn idle timed out waiting for terminal event";
     projector?.markTimedOut();
     trajectoryRecorder?.recordEvent("turn.terminal_idle_timeout", {
       threadId: thread.threadId,
@@ -1179,14 +1179,14 @@ export async function runCodexAppServerAttempt(
         call,
         toolBridge,
         signal: runAbortController.signal,
-        timeoutMs: CODEX_DYNAMIC_TOOL_TIMEOUT_MS,
+        timeoutMs: appServer.dynamicToolTimeoutMs,
         onTimeout: () => {
           trajectoryRecorder?.recordEvent("tool.timeout", {
             threadId: call.threadId,
             turnId: call.turnId,
             toolCallId: call.callId,
             name: call.tool,
-            timeoutMs: CODEX_DYNAMIC_TOOL_TIMEOUT_MS,
+            timeoutMs: appServer.dynamicToolTimeoutMs,
           });
         },
       });
@@ -1331,7 +1331,9 @@ export async function runCodexAppServerAttempt(
     prompt: promptBuild.prompt,
     imagesCount: params.images?.length ?? 0,
   });
-  projector = new CodexAppServerEventProjector(params, thread.threadId, activeTurnId);
+  projector = new CodexAppServerEventProjector(params, thread.threadId, activeTurnId, {
+    streamAssistantDeltas: appServer.streamAssistantDeltas,
+  });
   emitLifecycleStart();
   const activeProjector = projector;
   for (const notification of pendingNotifications.splice(0)) {
@@ -1568,7 +1570,10 @@ async function handleDynamicToolCallWithTimeout(params: {
     resolveAbort = resolve;
   });
   const timeoutPromise = new Promise<CodexDynamicToolCallResponse>((resolve) => {
-    const timeoutMs = Math.max(1, Math.min(CODEX_DYNAMIC_TOOL_TIMEOUT_MS, params.timeoutMs));
+    const timeoutMs =
+      typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs)
+        ? Math.max(1, Math.floor(params.timeoutMs))
+        : DEFAULT_CODEX_DYNAMIC_TOOL_TIMEOUT_MS;
     timeout = setTimeout(() => {
       timedOut = true;
       const timeoutDetails = formatDynamicToolTimeoutDetails({ call: params.call, timeoutMs });
@@ -1892,20 +1897,20 @@ async function withCodexStartupTimeout<T>(params: {
 
 function resolveCodexTurnCompletionIdleTimeoutMs(value: number | undefined): number {
   if (value === undefined) {
-    return CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS;
+    return DEFAULT_CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS;
   }
   if (!Number.isFinite(value)) {
-    return CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS;
+    return DEFAULT_CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS;
   }
   return Math.max(1, Math.floor(value));
 }
 
 function resolveCodexTurnTerminalIdleTimeoutMs(value: number | undefined): number {
   if (value === undefined) {
-    return CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS;
+    return DEFAULT_CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS;
   }
   if (!Number.isFinite(value)) {
-    return CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS;
+    return DEFAULT_CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS;
   }
   return Math.max(1, Math.floor(value));
 }
@@ -2246,9 +2251,9 @@ function handleApprovalRequest(params: {
 }
 
 export const __testing = {
-  CODEX_DYNAMIC_TOOL_TIMEOUT_MS,
-  CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS,
-  CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS,
+  CODEX_DYNAMIC_TOOL_TIMEOUT_MS: DEFAULT_CODEX_DYNAMIC_TOOL_TIMEOUT_MS,
+  CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS: DEFAULT_CODEX_TURN_COMPLETION_IDLE_TIMEOUT_MS,
+  CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS: DEFAULT_CODEX_TURN_TERMINAL_IDLE_TIMEOUT_MS,
   buildCodexNativeHookRelayId,
   applyCodexDynamicToolProfile,
   buildDynamicTools,

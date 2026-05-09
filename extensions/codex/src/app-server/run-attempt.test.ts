@@ -1114,7 +1114,7 @@ describe("runCodexAppServerAttempt", () => {
     params.timeoutMs = 60_000;
 
     const run = runCodexAppServerAttempt(params, {
-      turnCompletionIdleTimeoutMs: 5,
+      turnCompletionIdleTimeoutMs: 200,
       turnTerminalIdleTimeoutMs: 5,
     });
     await vi.waitFor(() => expect(handleRequest).toBeTypeOf("function"), { interval: 1 });
@@ -1150,7 +1150,7 @@ describe("runCodexAppServerAttempt", () => {
     await expect(run).resolves.toMatchObject({
       aborted: true,
       timedOut: true,
-      promptError: "codex app-server turn idle timed out waiting for turn/completed",
+      promptError: "codex app-server turn idle timed out waiting for terminal event",
     });
     expect(warn).toHaveBeenCalledWith(
       "codex app-server turn idle timed out waiting for terminal event",
@@ -1180,13 +1180,15 @@ describe("runCodexAppServerAttempt", () => {
     );
     params.timeoutMs = 60_000;
 
-    const run = runCodexAppServerAttempt(params, { turnTerminalIdleTimeoutMs: 5 });
+    const run = runCodexAppServerAttempt(params, {
+      pluginConfig: { appServer: { turnTerminalIdleTimeoutMs: 5 } },
+    });
     await harness.waitForMethod("turn/start");
 
     await expect(run).resolves.toMatchObject({
       aborted: true,
       timedOut: true,
-      promptError: "codex app-server turn idle timed out waiting for turn/completed",
+      promptError: "codex app-server turn idle timed out waiting for terminal event",
     });
     await vi.waitFor(
       () =>
